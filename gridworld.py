@@ -1,9 +1,58 @@
 import csv
 import sys
 import random
+from pprint import pprint
 import time
 
 import numpy as np
+
+
+def stochasticity(action, move_probability):
+    roll = random.random()
+    if roll < move_probability:
+        return action
+
+    if action == "LEFT":
+        if roll < move_probability + (1 - move_probability) / 2:
+            return "DOWN"
+        else:
+            return "UP"
+    if action == "UP":
+        if roll < move_probability + (1 - move_probability) / 2:
+            return "LEFT"
+        else:
+            return "RIGHT"
+    if action == "RIGHT":
+        if roll < move_probability + (1 - move_probability) / 2:
+            return "UP"
+        else:
+            return "DOWN"
+    if action == "DOWN":
+        if roll < move_probability + (1 - move_probability) / 2:
+            return "RIGHT"
+        else:
+            return "LEFT"
+
+
+def least_visited(x, y, legal_moves, qTable):
+    min_visited = float("inf")
+    random.shuffle(legal_moves)
+    min_visited_move = legal_moves[0]
+    for move in legal_moves:
+        if move == "LEFT":
+            newState = (x - 1, y)
+        elif move == "RIGHT":
+            newState = (x + 1, y)
+        elif move == "UP":
+            newState = (x, y - 1)
+        else:
+            newState = (x, y + 1)
+
+        if qTable[newState]["visited"] < min_visited:
+            min_visited = qTable[newState]["visited"]
+            min_visited_move = move
+
+    return min_visited_move
 
 
 def choose_move(x, y, epsilon, qTable, gridworld):
@@ -20,31 +69,31 @@ def choose_move(x, y, epsilon, qTable, gridworld):
             legal_moves.append("UP")
         if y + 1 < gridworld.shape[1]:
             legal_moves.append("DOWN")
-        action = random.choice(legal_moves)
+        action = least_visited(x, y, legal_moves, qTable)
         bestQ = qTable[(x, y)][action]
     else:
-        legal_moves = []
+        best_moves = []
         if x - 1 >= 0 and qTable[(x, y)]["LEFT"] > bestQ:
-            legal_moves = ["LEFT"]
+            best_moves = ["LEFT"]
             bestQ = qTable[(x, y)]["LEFT"]
         elif x - 1 >= 0 and qTable[(x, y)]["LEFT"] == bestQ:
-            legal_moves.append("LEFT")
+            best_moves.append("LEFT")
         if x + 1 < gridworld.shape[0] and qTable[(x, y)]["RIGHT"] > bestQ:
-            legal_moves = ["RIGHT"]
+            best_moves = ["RIGHT"]
             bestQ = qTable[(x, y)]["RIGHT"]
         elif x + 1 < gridworld.shape[0] and qTable[(x, y)]["RIGHT"] == bestQ:
-            legal_moves.append("RIGHT")
+            best_moves.append("RIGHT")
         if y - 1 >= 0 and qTable[(x, y)]["UP"] > bestQ:
-            legal_moves = ["UP"]
+            best_moves = ["UP"]
             bestQ = qTable[(x, y)]["UP"]
         elif y - 1 >= 0 and qTable[(x, y)]["UP"] == bestQ:
-            legal_moves.append("UP")
+            best_moves.append("UP")
         if y + 1 < gridworld.shape[1] and qTable[(x, y)]["DOWN"] > bestQ:
-            legal_moves = ["DOWN"]
+            best_moves = ["DOWN"]
             bestQ = qTable[(x, y)]["DOWN"]
         elif y + 1 < gridworld.shape[1] and qTable[(x, y)]["DOWN"] == bestQ:
-            legal_moves.append("DOWN")
-        action = random.choice(legal_moves)
+            best_moves.append("DOWN")
+        action = least_visited(x, y, best_moves, qTable)
 
     return action, bestQ
 
@@ -62,21 +111,38 @@ def runQLearning(gridworld, move_cost, move_probability, qTable, epsilon):
 
         action, bestQ = choose_move(startState[0], startState[1], epsilon, qTable, gridworld)
 
-        # actually perform the move (assume no stochasticity for now)
+        action = stochasticity(action, move_probability)
+
+        # actually perform the move
         if action == "LEFT":
-            newState = (startState[0] - 1, startState[1])
+            if startState[0] == 0:
+                newState = startState
+            else:
+                newState = (startState[0] - 1, startState[1])
         elif action == "RIGHT":
-            newState = (startState[0] + 1, startState[1])
+            if startState[0] == gridworld.shape[0] - 1:
+                newState = startState
+            else:
+                newState = (startState[0] + 1, startState[1])
         elif action == "UP":
-            newState = (startState[0], startState[1] - 1)
+            if startState[1] == 0:
+                newState = startState
+            else:
+                newState = (startState[0], startState[1] - 1)
         else:
-            newState = (startState[0], startState[1] + 1)
+            if startState[1] == gridworld.shape[1] - 1:
+                newState = startState
+            else:
+                newState = (startState[0], startState[1] + 1)
+
         total_move_cost += move_cost
 
         # then, update Q value based on the state we ended up in
-        future_best_q = max(qTable[newState].values())
+        future_best_q = \
+            max(qTable[newState]["LEFT"], qTable[newState]["RIGHT"], qTable[newState]["UP"], qTable[newState]["DOWN"])
         qTable[startState][action] +=\
             alpha * (move_cost + gridworld[newState[0]][newState[1]] + gamma * future_best_q - bestQ)
+        qTable[startState]["visited"] += 1
 
         # update which state we are in
         policy.append(action)
@@ -96,6 +162,7 @@ def initializeQTable(gridworld):
             qTable[(i, j)]["DOWN"] = 0
             qTable[(i, j)]["LEFT"] = 0
             qTable[(i, j)]["RIGHT"] = 0
+            qTable[(i, j)]["visited"] = 0
 
     return qTable
 
@@ -138,12 +205,12 @@ def main():
         start_time = time.time()
         while True:
             iterations += 1
-            epsilon -= 0.8 / 1000
+            epsilon -= 0.8 / 10000
             qTable, reward, policy = runQLearning(gridworld, move_cost, move_probability, qTable, epsilon)
             if reward == old_reward:
                 convergence_counter += 1
                 if convergence_counter >= 3:
-                    print("Converged after {} iterations".format(iterations))
+                    print("Converged after {} iterations and {} seconds".format(iterations, time.time() - start_time))
                     print("Expected reward: {}".format(reward))
                     print("Policy: {}".format(policy))
                     return
@@ -151,7 +218,7 @@ def main():
                 old_reward = reward
                 convergence_counter = 0
             if time.time() - start_time >= 20:
-                print("Ran out of time after {} iterations".format(iterations))
+                print("Ran out of time after {} iterations and {} seconds".format(iterations, time.time() - start_time))
                 print("Expected reward: {}".format(reward))
                 print("Policy: {}".format(policy))
                 return
