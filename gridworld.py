@@ -200,20 +200,23 @@ def main():
         qTable = initializeQTable(gridworld)
         epsilon = 0.8
         iterations = 0
-        convergence_counter = 0
-        old_reward = float("nan")
+        max_reward = float("-inf")
+        best_policy = []
         start_time = time.time()
+        last_improvement_time = start_time
         while True:
             iterations += 1
             epsilon -= 0.8 / 10000
             qTable, reward, policy = runQLearning(gridworld, move_cost, move_probability, qTable, epsilon)
-            if reward == old_reward:
-                convergence_counter += 1
-                if convergence_counter >= 3:
-                    print("Converged after {} iterations and {} seconds".format(iterations, time.time() - start_time))
-                    print("Expected reward: {}".format(reward))
-                    print("Policy: {}".format(policy))
-                    return
+            if reward > max_reward:
+                max_reward = reward
+                best_policy = policy
+                last_improvement_time = time.time()
+            if time.time() - last_improvement_time >= 2:
+                print("Converged after {} iterations and {} seconds".format(iterations, time.time() - start_time))
+                print("Expected reward: {}".format(max_reward))
+                print("Policy: {}".format(best_policy))
+                return
             else:
                 old_reward = reward
                 convergence_counter = 0
