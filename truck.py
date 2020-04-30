@@ -3,7 +3,6 @@ import random
 import sys
 import time
 from math import floor
-from pprint import pprint
 
 
 class TruckProblem:
@@ -45,7 +44,6 @@ class TruckProblem:
             while self.tick_counter < self.time_limit:
                 self.tick()
             print("Finished after {} ticks".format(self.time_limit))
-        # pprint(self.q_table.getQTable())
         print("Final score: {}".format(self.total_score))
         print("\n==== Learned Policy ====")
         self.q_table.print()
